@@ -1,0 +1,9 @@
+# Set baseURL to the site's real URL before deploying (e.g.
+# "https://ramiroau.github.io/caj-viz/" for a project page, or the root URL for a
+# user/organization page). relURL in the templates adapts to whatever is set here.
+baseURL = "/"
+languageCode = "es-ar"
+title = "Centros de Acceso a Justicia — Visualizaciones"
+
+[markup.goldmark.renderer]
+  unsafe = true   # allow raw HTML in content pages

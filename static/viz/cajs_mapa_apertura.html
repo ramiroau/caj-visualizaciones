@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CAJ — apertura por año</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --fg:#1c2833; --muted:#5d6d7e; --line:#d5dbdb; --accent:#21618c; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--fg); }
+  #map { position:absolute; inset:0; }
+  .panel { position:absolute; z-index:1000; top:12px; left:12px; right:auto;
+           background:rgba(255,255,255,.95); border:1px solid var(--line); border-radius:10px;
+           padding:12px 14px; box-shadow:0 2px 10px rgba(0,0,0,.12); width:340px; max-width:calc(100vw - 24px); }
+  .panel h1 { font-size:15px; margin:0 0 2px; }
+  .panel p.sub { font-size:12px; color:var(--muted); margin:0 0 10px; }
+  .row { display:flex; align-items:center; gap:10px; }
+  button#play { font-size:13px; padding:6px 12px; border:1px solid var(--line); border-radius:6px;
+                background:var(--accent); color:#fff; cursor:pointer; white-space:nowrap; }
+  input[type=range] { flex:1; accent-color:var(--accent); }
+  .yearline { display:flex; justify-content:space-between; align-items:baseline; margin-top:8px; }
+  .yearline b { font-size:22px; color:var(--accent); }
+  .yearline span { font-size:12px; color:var(--muted); }
+  .legend { position:absolute; z-index:1000; bottom:20px; right:12px; background:rgba(255,255,255,.95);
+            border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:11px; color:var(--muted); }
+  .legend .bar { width:120px; height:10px; border-radius:3px; margin:4px 0;
+                 background:linear-gradient(90deg,#440154,#3b528b,#21918c,#5ec962,#fde725); }
+  .legend .ends { display:flex; justify-content:space-between; }
+  .leaflet-popup-content { font-size:12.5px; line-height:1.4; }
+  .leaflet-popup-content b { font-size:13px; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="panel">
+  <h1>Centros de Acceso a Justicia</h1>
+  <p class="sub">Apertura por año y ubicación. Deslizá o presioná ▶ para ver cómo se abrieron en el tiempo. Clic en un punto para ver el detalle.</p>
+  <div class="row">
+    <button id="play">▶ Reproducir</button>
+    <input type="range" id="slider" />
+  </div>
+  <div class="yearline"><b id="yearLabel"></b><span id="count"></span></div>
+</div>
+<div class="legend">
+  Año de apertura
+  <div class="bar"></div>
+  <div class="ends"><span id="legMin"></span><span id="legMax"></span></div>
+</div>
+<script>
+const DATA = {"ymin":1990,"ymax":2019,"centros":[{"oficina":"CAJ - CABALLITO","loc":"Caballito","prov":"CABA","dom":"Campichuelo 553","fecha":"01/01/1990","anio":1990,"lat":-34.6162746708976,"lon":-58.4405512892781},{"oficina":"CAJ - LA BOCA","loc":"La Boca","prov":"CABA","dom":"Olavarría 440","fecha":"01/01/1990","anio":1990,"lat":-34.6321267225235,"lon":-58.3607704533768},{"oficina":"CAJ - LINIERS","loc":"Liniers","prov":"CABA","dom":"Cuzco 220","fecha":"01/01/1991","anio":1991,"lat":-34.6387095680666,"lon":-58.521239458825},{"oficina":"CAJ - MONSERRAT","loc":"Monserrat","prov":"CABA","dom":"Av. Belgrano 1177","fecha":"01/01/1995","anio":1995,"lat":-34.6132231680788,"lon":-58.38305798244},{"oficina":"OFICINA MULTIPUERTAS LAVALLE","loc":"San Nicolás","prov":"CABA","dom":"Lavalle 1220 PB","fecha":"01/01/2006","anio":2006,"lat":-34.6037699996038,"lon":-58.3815970890394},{"oficina":"CAJ - VILLA SOLDATI","loc":"Villa Soldati","prov":"CABA","dom":"Av. Mariano Acosta 2333","fecha":"01/01/2008","anio":2008,"lat":-34.6638875390919,"lon":-58.4445372043618},{"oficina":"CAJ - VILLA 1.11.14","loc":"Bajo Flores","prov":"CABA","dom":"Av. Perito Moreno y Cruz - Manzana 3, Casa 1","fecha":"31/03/2010","anio":2010,"lat":-34.6144420654301,"lon":-58.4458763250916},{"oficina":"CAJ - SANTA FE","loc":"Santa Fe","prov":"Santa Fe","dom":"Facundo Zuviría 8020","fecha":"01/04/2010","anio":2010,"lat":-31.646557462771,"lon":-60.7099957332733},{"oficina":"CAJ - VILLA 21.24","loc":"Barracas","prov":"CABA","dom":"Río Cuarto 3335","fecha":"23/04/2010","anio":2010,"lat":-34.6375239276335,"lon":-58.3743917244648},{"oficina":"CAJ - BARRACAS","loc":"Barracas","prov":"CABA","dom":"San Antonio 555","fecha":"01/05/2010","anio":2010,"lat":-34.6375239276335,"lon":-58.3743917244648},{"oficina":"CAJ - NEUQUÉN","loc":"Neuquén","prov":"Neuquén","dom":"Mitre 461","fecha":"01/05/2010","anio":2010,"lat":-38.9513065600706,"lon":-68.0591439619475},{"oficina":"CAJ - VILLA 31 -  Sector Güemes","loc":"Retiro","prov":"CABA","dom":"Calle 5, Manzana 16, Casa 1","fecha":"11/05/2010","anio":2010,"lat":-34.5946029190836,"lon":-58.3756602784231},{"oficina":"CAJ - ROSARIO","loc":"Rosario","prov":"Santa Fe","dom":"Ayacucho 5662","fecha":"01/06/2010","anio":2010,"lat":-32.9470419146466,"lon":-60.6332161913325},{"oficina":"CAJ - VILLA 20","loc":"Villa Lugano","prov":"CABA","dom":"Miralla y Sayos","fecha":"01/08/2010","anio":2010,"lat":-34.6757351167715,"lon":-58.4751123265209},{"oficina":"CAJ - BARRIO INTA","loc":"Villa Lugano","prov":"CABA","dom":"Calle Los Robles, Mza. 3, Barrio Inta","fecha":"01/09/2010","anio":2010,"lat":-34.6757351167715,"lon":-58.4751123265209},{"oficina":"CAJ - FLORESTA","loc":"Floresta","prov":"CABA","dom":"Venancio Flores 3519","fecha":"08/04/2011","anio":2011,"lat":-34.6300443485746,"lon":-58.482519362214},{"oficina":"CAJ - SAN MARTÍN","loc":"San Martín","prov":"Buenos Aires","dom":"Av. de los Constituyentes 3100, Bº Villa Zagala","fecha":"05/05/2011","anio":2011,"lat":-34.5779100956477,"lon":-58.5386564736863},{"oficina":"CAJ - SAN SALVADOR DE JUJUY - Centro","loc":"San Salvador de Jujuy","prov":"Jujuy","dom":"Independencia 127","fecha":"31/05/2011","anio":2011,"lat":-24.185813089784,"lon":-65.2990832994208},{"oficina":"CAJ - MERCEDES","loc":"Mercedes","prov":"Buenos Aires","dom":"Calle 16 Nº 3080 (y 101 bis). Sociedad de Fomento Barrio Obrero","fecha":"07/09/2011","anio":2011,"lat":-34.6510310477336,"lon":-59.3524961835322},{"oficina":"CAJ - CIPOLLETTI","loc":"Cipolletti","prov":"Río Negro","dom":"San Martin 177","fecha":"01/10/2011","anio":2011,"lat":-38.9292908711398,"lon":-67.9843320069784},{"oficina":"CAJ - CONSTITUCIÓN - Pte. Néstor Carlos Kirchner","loc":"Constitución","prov":"CABA","dom":"Brasil 1000 esquina Bernardo de Yrigoyen","fecha":"07/10/2011","anio":2011,"lat":-34.6268216975629,"lon":-58.3871881244988},{"oficina":"CAJ - PRES. ROQUE SÁENZ PEÑA","loc":"Sáenz Peña","prov":"Chaco","dom":"Quinta 99, Bº San Cayetano","fecha":"01/11/2011","anio":2011,"lat":-26.7909684280648,"lon":-60.4413051819243},{"oficina":"CAJ - SANTIAGO DEL ESTERO","loc":"Santiago del Estero","prov":"Santiago del Estero","dom":"Santa Cruz 237, Barrio Alberdi","fecha":"03/11/2011","anio":2011,"lat":-27.7876388167204,"lon":-64.2596955067656},{"oficina":"CAJ - RESISTENCIA","loc":"Resistencia","prov":"Chaco","dom":"Obligado 320","fecha":"04/11/2011","anio":2011,"lat":-27.4511053567767,"lon":-58.9864521686869},{"oficina":"CAJ - LA PLATA - VILLA ELVIRA","loc":"La Plata","prov":"Buenos Aires","dom":"Calle 609 y 122, Bº Villa Elvira","fecha":"01/01/2012","anio":2012,"lat":-34.9213622338581,"lon":-57.9545000223642},{"oficina":"CAJ - CÓRDOBA - B° CABILDO - Centro Integrador Comunitario","loc":"Barrio Cabildo","prov":"Córdoba","dom":"Colorado 6500 B° Cabildo (Villa Libertador)","fecha":"07/06/2012","anio":2012,"lat":-32.1447993873859,"lon":-63.801973466573},{"oficina":"CAJ - MENDOZA","loc":"Ciudad de Mendoza","prov":"Mendoza","dom":"Alem 30 (Mendoza Centro)","fecha":"30/06/2012","anio":2012,"lat":-32.8985811304419,"lon":-68.8464060446987},{"oficina":"CAJ - CORRIENTES B° Independencia","loc":"Corrientes","prov":"Corrientes","dom":"Los Cuevas y Calle 461. B Independencia.","fecha":"20/07/2012","anio":2012,"lat":-27.4632821641043,"lon":-58.8392333481757},{"oficina":"CAJ - VILLA 15","loc":"Villa Lugano","prov":"CABA","dom":"Mza 8, Casa 1, entre Hubac y Pilar. Parroquia Nuestra Sra del Carmen.","fecha":"24/07/2012","anio":2012,"lat":-34.6757351167715,"lon":-58.4751123265209},{"oficina":"CAJ - LA PLATA - B° LA USINA","loc":"La Plata","prov":"Buenos Aires","dom":"Calle 146 Nº 343 e/531 y 532","fecha":"01/08/2012","anio":2012,"lat":-34.9213622338581,"lon":-57.9545000223642},{"oficina":"CAJ - CÓRDOBA - B° MALDONADO","loc":"Barrio Maldonado","prov":"Córdoba","dom":"Manuel Querini 390 Esq. Blas Parera","fecha":"10/08/2012","anio":2012,"lat":-32.1447993873859,"lon":-63.801973466573},{"oficina":"CAJ - OLAVARRÍA","loc":"Olavarría","prov":"Buenos Aires","dom":"Belgrano 2414","fecha":"31/10/2012","anio":2012,"lat":-36.865850435029,"lon":-60.1603430337976},{"oficina":"CAJ - CHASCOMÚS","loc":"Chascomús","prov":"Buenos Aires","dom":"Franklin 42","fecha":"08/11/2012","anio":2012,"lat":-35.5770527211859,"lon":-58.0084623060577},{"oficina":"CAJ - FLORENCIO VARELA","loc":"Florencio Varela","prov":"Buenos Aires","dom":"Las Heras 2895 esq. Ayacucho","fecha":"08/11/2012","anio":2012,"lat":-34.8043714405555,"lon":-58.2792719767724},{"oficina":"CAJ - JUNÍN","loc":"Junín","prov":"Buenos Aires","dom":"Rivadavia 5 Planta Alta, esq. Arias","fecha":"08/11/2012","anio":2012,"lat":-34.576704518763,"lon":-60.9470682040392},{"oficina":"CAJ - FORMOSA","loc":"Formosa","prov":"Formosa","dom":"José María Uriburu 175","fecha":"01/12/2012","anio":2012,"lat":-26.1852113386808,"lon":-58.1743535107885},{"oficina":"CAJ - SANTA ROSA","loc":"Santa Rosa","prov":"La Pampa","dom":"Pellegrini 132","fecha":"01/12/2012","anio":2012,"lat":-36.6203995261434,"lon":-64.2905735675783},{"oficina":"CAJ - PARANÁ B° San Agustin","loc":"Paraná","prov":"Entre Ríos","dom":"República de Siria 486, Barrio San Agustín.","fecha":"01/12/2012","anio":2012,"lat":-31.7401482152859,"lon":-60.5274658870377},{"oficina":"CAJ - DOLORES","loc":"Dolores","prov":"Buenos Aires","dom":"San Martin 750","fecha":"31/12/2012","anio":2012,"lat":-36.3153676069646,"lon":-57.6755454308423},{"oficina":"CAJ - SAN NICOLÁS","loc":"San Nicolás","prov":"Buenos Aires","dom":"Garibaldi 185","fecha":"31/12/2012","anio":2012,"lat":-34.6037699996038,"lon":-58.3815970890394},{"oficina":"CAJ - CAMPO GALLO","loc":"Campo Gallo","prov":"Santiago del Estero","dom":"Lasalle S/N en la plaza central de Campo Gallo","fecha":"10/06/2013","anio":2013,"lat":-26.5838922640244,"lon":-62.847059741302},{"oficina":"CAJ - MALVINAS ARGENTINAS","loc":"Malvinas Argentinas","prov":"Buenos Aires","dom":"Batalla de Maipú 2931","fecha":"22/07/2013","anio":2013,"lat":-34.4941030304424,"lon":-58.7005058220394},{"oficina":"CAJ - BAHÍA BLANCA","loc":"Bahía Blanca","prov":"Buenos Aires","dom":"Chacabuco 2250 - Barrio Villa Mitre","fecha":"22/08/2013","anio":2013,"lat":-38.7175489907773,"lon":-62.2654155252819},{"oficina":"CAJ - LANÚS - VILLA JARDÍN","loc":"Lanús","prov":"Buenos Aires","dom":"Warnes 4095","fecha":"30/09/2013","anio":2013,"lat":-34.7075670582991,"lon":-58.3911484853653},{"oficina":"CAJ - SAN MIGUEL DE TUCUMÁN Centro","loc":"San Miguel de Tucumán","prov":"Tucumán","dom":"25 de Mayo 1095","fecha":"01/12/2013","anio":2013,"lat":-26.8330706975512,"lon":-65.2044074976478},{"oficina":"CAJ - POSADAS B° Itaembe Mini","loc":"Posadas","prov":"Misiones","dom":"Calle 145 N° 8188 Barrio Itaembé Miní","fecha":"31/03/2014","anio":2014,"lat":-27.3896545260435,"lon":-55.9193081767805},{"oficina":"CAJ - LANÚS - EL MORRO","loc":"Lanús","prov":"Buenos Aires","dom":"Ramón Cabrero 2836 (Ex Gral. Arias)","fecha":"30/04/2014","anio":2014,"lat":-34.7075670582991,"lon":-58.3911484853653},{"oficina":"CAJ - HURLINGHAM","loc":"W.C.Morris, Hurlingham","prov":"Buenos Aires","dom":"Dolores Huici 3276","fecha":"30/06/2014","anio":2014,"lat":-34.5901201526933,"lon":-58.6281530798591},{"oficina":"CAJ - ALMIRANTE BROWN","loc":"Burzaco, Almirante Brown","prov":"Buenos Aires","dom":"Roca 983","fecha":"30/06/2014","anio":2014,"lat":-34.8354386860517,"lon":-58.3743891773161},{"oficina":"CAJ - QUILMES","loc":"Villa Itati","prov":"Buenos Aires","dom":"Falucho 945 entre misiones y Formosa","fecha":"31/08/2014","anio":2014,"lat":-36.6773920760823,"lon":-60.5584771084959},{"oficina":"CAJ - LA RIOJA","loc":"La Rioja","prov":"La Rioja","dom":"Perón 451","fecha":"30/09/2014","anio":2014,"lat":-29.4127883450019,"lon":-66.8558712964321},{"oficina":"CAJ - LA MATANZA Villa Palito","loc":"La Matanza","prov":"Buenos Aires","dom":"Tucumán y Entre Ríos. Manzana 10, a una cuadra de Camino de Cintura","fecha":"30/09/2014","anio":2014,"lat":-34.6775535198437,"lon":-58.5609727562767},{"oficina":"CAJ - HOSPITAL DE DERECHOS","loc":"Once","prov":"CABA","dom":"Avenida Rivadavia 2690","fecha":"10/12/2014","anio":2014,"lat":-34.6144420654301,"lon":-58.4458763250916},{"oficina":"CAJ - PUERTO MADRYN","loc":"Puerto Madryn","prov":"Chubut","dom":"Calle 25 de Mayo 525 Local 2","fecha":"31/12/2014","anio":2014,"lat":-42.7672587115408,"lon":-65.0366329097967},{"oficina":"CAJ - BARILOCHE","loc":"Bariloche","prov":"Río Negro","dom":"Ruta 40 Sur y Teniente Espinosa, Barrio 2 de abril","fecha":"31/01/2015","anio":2015,"lat":-41.1335181791713,"lon":-71.3101230266527},{"oficina":"CAJ - PERGAMINO","loc":"Pergamino","prov":"Buenos Aires","dom":"Boulevard Colon 1124","fecha":"31/01/2015","anio":2015,"lat":-33.893276092013,"lon":-60.5645053715269},{"oficina":"CAJ - SAN RAFAEL","loc":"San Rafael","prov":"Mendoza","dom":"Comodoro Pi N°220.","fecha":"31/03/2015","anio":2015,"lat":-34.6074135938185,"lon":-68.3291684724082},{"oficina":"CAJ - CLORINDA","loc":"Clorinda","prov":"Formosa","dom":"Calle Italia y Av. Maraña","fecha":"31/05/2015","anio":2015,"lat":-25.2899901602299,"lon":-57.7125306364674},{"oficina":"CAJ - JUAN JOSE CASTELLI","loc":"Castelli","prov":"Chaco","dom":"Juan Manuel de Rosas n° 55, esq. Av. 2 de Febrero","fecha":"30/09/2015","anio":2015,"lat":-25.9465772969756,"lon":-60.6200644824646},{"oficina":"CAJ - SAN PEDRO","loc":"San Pedro","prov":"Buenos Aires","dom":"Hermano Indio 2102","fecha":"30/09/2015","anio":2015,"lat":-33.7692217662795,"lon":-59.6393833030416},{"oficina":"CAJ - GUALEGUAYCHÚ","loc":"Gualeguaychú","prov":"Entre Ríos","dom":"Juan B. Justo 525 entre Belgrano y Saenz Peña. Barrio La Cuchilla","fecha":"30/09/2015","anio":2015,"lat":-33.0077994760692,"lon":-58.5110163879779},{"oficina":"CAJ - SAN FERNANDO","loc":"San Fernando","prov":"Buenos Aires","dom":"Sarmiento 1067","fecha":"30/09/2015","anio":2015,"lat":-34.4418003197061,"lon":-58.5580198721145},{"oficina":"CAJ - ENSENADA","loc":"Ensenada","prov":"Buenos Aires","dom":"Presidente Perón 584","fecha":"31/10/2015","anio":2015,"lat":-34.8574603095566,"lon":-57.9077167405645},{"oficina":"CAJ - LA PLATA - CENTRO","loc":"La Plata","prov":"Buenos Aires","dom":"calle 532 nro 1211 e/ 19 y 20","fecha":"31/10/2015","anio":2015,"lat":-34.9213622338581,"lon":-57.9545000223642},{"oficina":"CAJ - SAN PEDRO DE JUJUY","loc":"San Pedro de Jujuy","prov":"Jujuy","dom":"Avda. Presidente Perón Nº 11","fecha":"04/08/2016","anio":2016,"lat":-24.2313021129282,"lon":-64.8681693070463},{"oficina":"CAJ - SAN SALVADOR DE JUJUY - ALTO COMEDERO","loc":"San Salvador de Jujuy","prov":"Jujuy","dom":"Calle Capitán García esquina Hermanos Lemoide. Barrio 370 Viviendas","fecha":"04/08/2016","anio":2016,"lat":-24.185813089784,"lon":-65.2990832994208},{"oficina":"CAJ - SAN JUAN","loc":"SanJuan","prov":"San Juan","dom":"Maipú 837 Este","fecha":"25/08/2016","anio":2016,"lat":-31.5371970378027,"lon":-68.5250183173793},{"oficina":"CAJ - RAWSON","loc":"Rawson","prov":"San Juan","dom":"Tacuarí, entre Triunvirato Sur y Av. España (Ex Coloso).","fecha":"05/09/2016","anio":2016,"lat":-31.5708864383383,"lon":-68.5296076776425},{"oficina":"CAJ - MAR DEL PLATA","loc":"Mar del Plata","prov":"Buenos Aires","dom":"Santa Cruz 3571, PB","fecha":"09/09/2016","anio":2016,"lat":-37.997618882919,"lon":-57.5481525302113},{"oficina":"CAJ - SAN MIGUEL DE TUCUMÁN Sur","loc":"San Miguel de Tucumán","prov":"Tucumán","dom":"Avenida Jujuy 2253","fecha":"04/11/2016","anio":2016,"lat":-26.8330706975512,"lon":-65.2044074976478},{"oficina":"CAJ - PILAR","loc":"Pilar","prov":"Buenos Aires","dom":"Ituzaingó 623","fecha":"07/11/2016","anio":2016,"lat":-34.4587099138041,"lon":-58.913989480885},{"oficina":"CAJ - QUILMES CASA DE JUSTICIA","loc":"San Francisco Solano","prov":"Buenos Aires","dom":"Calle 829 N°1870. Parroquia Ntra Sra de las Lágrimas","fecha":"12/12/2016","anio":2016,"lat":-34.7856525531101,"lon":-58.3195680327004},{"oficina":"CAJ - VALLE VIEJO","loc":"Valle Viejo","prov":"Catamarca","dom":"Av. Presidente Castillo S/N y Tres Puentes","fecha":"13/12/2016","anio":2016,"lat":-28.6000684837485,"lon":-65.7079324164837},{"oficina":"CAJ - ESTEBAN ECHEVERRÍA","loc":"Esteban Echeverría","prov":"Buenos Aires","dom":"Alem 785","fecha":"22/02/2017","anio":2017,"lat":-34.8193488124903,"lon":-58.4659157112903},{"oficina":"CAJ - TRES DE FEBRERO","loc":"Tres de Febrero","prov":"Buenos Aires","dom":"Murias 2160","fecha":"03/03/2017","anio":2017,"lat":-34.6048497158582,"lon":-58.5609615725508},{"oficina":"CAJ - TOLHUIN","loc":"Tolhuin","prov":"Tierra del fuego","dom":"Policía Fueguina N° 550","fecha":"21/03/2017","anio":2017,"lat":-54.5767288121226,"lon":-67.1957989971612},{"oficina":"CAJ - USHUAIA","loc":"Ushuaia","prov":"Tierra del fuego","dom":"Alem 1036","fecha":"21/03/2017","anio":2017,"lat":-54.8074039816905,"lon":-68.3037571781958},{"oficina":"CAJ - RÍO GALLEGOS","loc":"Río Gallegos","prov":"Santa Cruz","dom":"25 de Mayo 83","fecha":"17/04/2017","anio":2017,"lat":-51.6234085204239,"lon":-69.2161035841345},{"oficina":"CAJ - ELDORADO","loc":"Eldorado","prov":"Misiones","dom":"Almirante Brown y Horacio Quiroga","fecha":"30/04/2017","anio":2017,"lat":-26.4086211746541,"lon":-54.6238428075538},{"oficina":"CAJ - VILLA MERCEDES","loc":"Villa Mercedes","prov":"San Luis","dom":"Buenos Aires 122","fecha":"10/05/2017","anio":2017,"lat":-33.6744309804673,"lon":-65.4623806406395},{"oficina":"CAJ - CÓRDOBA - VILLA MARIA","loc":"Villa Maria","prov":"Córdoba","dom":"Walt Disney n° 78","fecha":"17/05/2017","anio":2017,"lat":-32.4149515976008,"lon":-63.2435434267308},{"oficina":"CAJ - VICENTE LOPEZ","loc":"Vicente Lopez","prov":"Buenos Aires","dom":"Maipú 130, Local 2","fecha":"16/06/2017","anio":2017,"lat":-34.5275557594499,"lon":-58.5030975311771},{"oficina":"CAJ - ORAN","loc":"Oran","prov":"Salta","dom":"Pellegrini 451","fecha":"20/07/2017","anio":2017,"lat":-23.1286385513745,"lon":-64.3213844603846},{"oficina":"CAJ - LA MATANZA Barrio 17 de marzo","loc":"La Matanza","prov":"Buenos Aires","dom":"Independencia 127","fecha":"31/07/2017","anio":2017,"lat":-34.6775535198437,"lon":-58.5609727562767},{"oficina":"CAJ - TIGRE","loc":"Tigre","prov":"Buenos Aires","dom":"Av. Hipolito Yrigoyen 2641","fecha":"28/08/2017","anio":2017,"lat":-34.4256910710843,"lon":-58.5810472651652},{"oficina":"CAJ - MORON","loc":"Moron","prov":"Buenos Aires","dom":"Ntra Sra de Buen Viaje 968","fecha":"27/09/2017","anio":2017,"lat":-34.6485927855746,"lon":-58.6221005158761},{"oficina":"CAJ - AVELLANEDA","loc":"Avellaneda","prov":"Buenos Aires","dom":"Avenida Mitre 351 local 20","fecha":"06/10/2017","anio":2017,"lat":-34.6660332617204,"lon":-58.3497677273389},{"oficina":"CAJ - MORENO","loc":"Trujui","prov":"Buenos Aires","dom":"Néstor Kirchner 2050","fecha":"12/12/2017","anio":2017,"lat":-34.6502671432558,"lon":-58.7894737815397},{"oficina":"CAJ - SUSQUES","loc":"Susques","prov":"Jujuy","dom":"San Luis y Orosmayo","fecha":"27/06/2018","anio":2018,"lat":-23.3993487788994,"lon":-66.3663509046119},{"oficina":"CAJ - CAMPO GALLO (POSTA)","loc":"Campo Gallo","prov":"Santiago del Estero","dom":"CAJ Campo gallo","fecha":"01/01/2019","anio":2019,"lat":-26.5838922640244,"lon":-62.847059741302},{"oficina":"CAJ - LOS ROBLES","loc":"San Blas de los Sauces","prov":"La Rioja","dom":"Ruta Nacional Nº 40 s/n","fecha":"01/05/2019","anio":2019,"lat":-28.5432938438196,"lon":-67.1581352967934},{"oficina":"CAJ - AMAICHA DEL VALLE","loc":"Amaicha del Valle","prov":"Tucumán","dom":"Claudia Vélez de Cano, Miguel Aráoz. Casa de la Gobernanza","fecha":"01/06/2019","anio":2019,"lat":-26.5937240500164,"lon":-65.9200695796332},{"oficina":"CAJ - BELÉN","loc":"Belén","prov":"Catamarca","dom":"Av. Calchaquí 61 (Hospital Zonal de Belén, al lado del vacunatorio)","fecha":"01/07/2019","anio":2019,"lat":-27.6500358414945,"lon":-67.0264948058202},{"oficina":"CAJ - INGENIERO JUÁREZ","loc":"Ing. Juárez","prov":"Formosa","dom":"Av. Degen entre Mendoza y Anaquin, Ingeniero Juárez","fecha":"01/10/2019","anio":2019,"lat":-23.9037391500172,"lon":-61.8424292693027}]};
+const { ymin, ymax, centros } = DATA;
+
+const map = L.map("map", { scrollWheelZoom: true });
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+  attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: "abcd", maxZoom: 19
+}).addTo(map);
+
+// viridis stops → color by year fraction
+const VIRIDIS = ["#440154","#3b528b","#21918c","#5ec962","#fde725"];
+function lerp(a,b,t){return Math.round(a+(b-a)*t);}
+function hex(c){const n=parseInt(c.slice(1),16);return [(n>>16)&255,(n>>8)&255,n&255];}
+function colorFor(anio){
+  const t = ymax===ymin ? 0 : (anio-ymin)/(ymax-ymin);
+  const x = t*(VIRIDIS.length-1), i = Math.min(Math.floor(x), VIRIDIS.length-2), f = x-i;
+  const a = hex(VIRIDIS[i]), b = hex(VIRIDIS[i+1]);
+  return `rgb(${lerp(a[0],b[0],f)},${lerp(a[1],b[1],f)},${lerp(a[2],b[2],f)})`;
+}
+
+const layer = L.layerGroup().addTo(map);
+const all = centros.map(c => {
+  const m = L.circleMarker([c.lat, c.lon], {
+    radius: 6, weight: 1.5, color: "#fff", fillColor: colorFor(c.anio), fillOpacity: 0.9
+  });
+  m.bindPopup(
+    `<b>${c.oficina}</b><br>${c.loc}, ${c.prov}<br>${c.dom}<br>Apertura: ${c.fecha}`
+  );
+  m.bindTooltip(c.oficina, { direction: "top" });
+  return { c, m };
+});
+map.fitBounds(L.latLngBounds(centros.map(c => [c.lat, c.lon])).pad(0.08));
+
+const slider = document.getElementById("slider");
+slider.min = ymin; slider.max = ymax; slider.step = 1; slider.value = ymax;
+document.getElementById("legMin").textContent = ymin;
+document.getElementById("legMax").textContent = ymax;
+
+function render(y) {
+  y = +y;
+  layer.clearLayers();
+  let n = 0;
+  for (const {c, m} of all) if (c.anio <= y) { layer.addLayer(m); n++; }
+  document.getElementById("yearLabel").textContent = y;
+  document.getElementById("count").textContent = `${n} de ${centros.length} centros abiertos`;
+}
+slider.addEventListener("input", () => { stop(); render(slider.value); });
+
+let timer = null;
+const btn = document.getElementById("play");
+function stop(){ if (timer){ clearInterval(timer); timer=null; btn.textContent="▶ Reproducir"; } }
+btn.addEventListener("click", () => {
+  if (timer) { stop(); return; }
+  if (+slider.value >= ymax) slider.value = ymin;   // restart if at end
+  render(slider.value);
+  btn.textContent = "⏸ Pausar";
+  timer = setInterval(() => {
+    let y = +slider.value;
+    if (y >= ymax) { stop(); return; }
+    slider.value = y + 1; render(slider.value);
+  }, 600);
+});
+
+render(ymax);
+</script>
+</body>
+</html>
