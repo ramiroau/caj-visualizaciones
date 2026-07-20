@@ -60,6 +60,7 @@
     <button class="tab active" role="tab" data-target="mapa">Mapa de apertura</button>
     <button class="tab" role="tab" data-target="treemap">Temas y subtemas</button>
     <button class="tab" role="tab" data-target="comparar">Comparar dos CAJ</button>
+    <button class="tab" role="tab" data-target="educacion">Nivel educativo</button>
   </div>
 
   <div class="panel active" id="mapa" role="tabpanel">
@@ -94,6 +95,14 @@
         <iframe data-src="{{ "viz/subtema_mapa.html" | relURL }}" title="Comparación — CAJ B"></iframe>
       </div>
     </div>
+  </div>
+
+  <div class="panel" id="educacion" role="tabpanel">
+    <div class="panel-bar">
+      <span class="desc">Consultas según el nivel educativo declarado por la persona consultante. Elegí uno o más niveles y, opcionalmente, usá el nivel educativo como primer nivel del treemap para leer la composición de temas dentro de cada uno.</span>
+      <a class="full" href="{{ "viz/educacion_mapa.html" | relURL }}" target="_blank" rel="noopener">Pantalla completa ↗</a>
+    </div>
+    <iframe data-src="{{ "viz/educacion_mapa.html" | relURL }}" title="Treemap de consultas por nivel educativo"></iframe>
   </div>
 
   <footer>Generado a partir de datos de los CAJ · última actualización {{ now.Format "2006-01-02" }}.</footer>
