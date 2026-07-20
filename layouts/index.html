@@ -34,6 +34,17 @@
                     border:1px solid var(--line); border-radius:6px; padding:4px 10px; }
   .panel iframe{ display:block; width:100%; height:calc(100vh - 150px); min-height:520px; border:0;
                  border-top:1px solid var(--line); }
+
+  /* side-by-side comparison panel */
+  .compare{ display:flex; gap:1px; background:var(--line); border-top:1px solid var(--line); }
+  .compare-col{ flex:1 1 50%; min-width:0; background:var(--bg); display:flex; flex-direction:column; }
+  .compare-col .col-head{ display:flex; justify-content:space-between; align-items:center; gap:8px;
+                          padding:6px 12px; font-size:12.5px; font-weight:600; color:var(--fg);
+                          background:#f4f6f7; border-bottom:1px solid var(--line); }
+  .compare-col .col-head .full{ font-weight:400; color:var(--accent); text-decoration:none; white-space:nowrap; }
+  .compare-col iframe{ display:block; width:100%; height:calc(100vh - 190px); min-height:460px;
+                       border:0; border-top:0; }
+  @media (max-width:900px){ .compare{ flex-direction:column; } }
   footer{ color:var(--muted); font-size:12.5px; padding:14px 22px 26px; }
 </style>
 </head>
@@ -48,6 +59,7 @@
   <div class="tabs" role="tablist">
     <button class="tab active" role="tab" data-target="mapa">Mapa de apertura</button>
     <button class="tab" role="tab" data-target="treemap">Temas y subtemas</button>
+    <button class="tab" role="tab" data-target="comparar">Comparar dos CAJ</button>
   </div>
 
   <div class="panel active" id="mapa" role="tabpanel">
@@ -66,6 +78,24 @@
     <iframe data-src="{{ "viz/subtema_mapa.html" | relURL }}" title="Treemap de temas y subtemas"></iframe>
   </div>
 
+  <div class="panel" id="comparar" role="tabpanel">
+    <div class="panel-bar">
+      <span class="desc">Elegí una dependencia (CAJ) distinta en cada panel —con el filtro "Dependencia"— para comparar sus perfiles de temas y subtemas lado a lado. Cada panel filtra de forma independiente.</span>
+    </div>
+    <div class="compare">
+      <div class="compare-col">
+        <div class="col-head"><span>CAJ A</span>
+          <a class="full" href="{{ "viz/subtema_mapa.html" | relURL }}" target="_blank" rel="noopener">Pantalla completa ↗</a></div>
+        <iframe data-src="{{ "viz/subtema_mapa.html" | relURL }}" title="Comparación — CAJ A"></iframe>
+      </div>
+      <div class="compare-col">
+        <div class="col-head"><span>CAJ B</span>
+          <a class="full" href="{{ "viz/subtema_mapa.html" | relURL }}" target="_blank" rel="noopener">Pantalla completa ↗</a></div>
+        <iframe data-src="{{ "viz/subtema_mapa.html" | relURL }}" title="Comparación — CAJ B"></iframe>
+      </div>
+    </div>
+  </div>
+
   <footer>Generado a partir de datos de los CAJ · última actualización {{ now.Format "2006-01-02" }}.</footer>
 
 <script>
@@ -77,13 +107,14 @@
       const on = p.id === id;
       p.classList.toggle('active', on);
       if (!on) return;
-      const f = p.querySelector('iframe');
-      if (f && !f.src) {
-        f.src = f.dataset.src;                 // lazy-load the first time the tab opens
-      } else if (f) {
-        // already loaded elsewhere; nudge inner viz to re-measure now that it's visible
-        try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {}
-      }
+      // lazy-load every iframe in the panel (one for single panels, two for the compare panel)
+      p.querySelectorAll('iframe').forEach(f => {
+        if (!f.src) {
+          f.src = f.dataset.src;               // first time the tab opens
+        } else {
+          try { f.contentWindow.dispatchEvent(new Event('resize')); } catch (e) {}
+        }
+      });
     });
   }
   tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.target)));
