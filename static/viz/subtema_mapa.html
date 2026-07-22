@@ -41,6 +41,14 @@
   .slider input[type=range]::-moz-range-thumb { pointer-events:auto; width:16px; height:16px;
                    border-radius:50%; background:var(--accent); border:2px solid #fff;
                    box-shadow:0 0 2px rgba(0,0,0,.45); cursor:pointer; }
+  .presets { display:flex; gap:6px; margin-top:8px; }
+  .preset { font-size:11.5px; padding:5px 9px; border:1px solid var(--line); border-radius:6px;
+            background:#f4f6f7; color:var(--fg); cursor:pointer; line-height:1.15; text-align:left;
+            font-weight:600; }
+  .preset small { display:block; color:var(--muted); font-size:10px; font-weight:400; margin-top:1px; }
+  .preset:hover { border-color:var(--accent); }
+  .preset.active { border-color:var(--accent); background:#eaf1f8; color:var(--accent); }
+  .preset.active small { color:var(--accent); }
   #tm { width:100%; height:calc(100vh - 200px); min-height:420px; }
   #empty { display:none; padding:40px 18px; color:var(--muted); font-size:14px; }
 </style>
@@ -75,6 +83,10 @@
       <div class="track"><div class="fill" id="rangeFill"></div></div>
       <input type="range" id="rMin" />
       <input type="range" id="rMax" />
+    </div>
+    <div class="presets" id="presets">
+      <button type="button" class="preset" data-lo="201512" data-hi="201911">Macri<small>dic 2015 – nov 2019</small></button>
+      <button type="button" class="preset" data-lo="201912" data-hi="202311">A. Fernández<small>dic 2019 – nov 2023</small></button>
     </div>
   </div>
   <button class="reset" id="resetBtn" type="button">Restablecer</button>
@@ -294,9 +306,35 @@ provSelect.addEventListener("change", () => { refreshDepOptions(); render(); });
 depSelect.addEventListener("change", render);
 ctChecks.addEventListener("change", render);
 [rMin, rMax].forEach(r => {
-  r.addEventListener("input", syncSlider);       // live thumb + label while dragging
+  r.addEventListener("input", () => { clearActivePreset(); syncSlider(); });  // manual drag → drop preset
   r.addEventListener("change", render);          // re-aggregate on release
 });
+
+// ── Presidency presets: snap the slider to a presidency's year-month span ────
+const presets = document.getElementById("presets");
+function clearActivePreset() { presets.querySelectorAll(".preset").forEach(b => b.classList.remove("active")); }
+function applyPresetRange(lo, hi) {
+  // lo/hi are YYYYMM bounds; clamp to the month buckets actually present
+  let loIdx = months.findIndex(m => m >= lo);
+  let hiIdx = -1;
+  for (let i = 0; i < months.length; i++) if (months[i] <= hi) hiIdx = i;
+  if (loIdx === -1 || hiIdx === -1 || hiIdx < loIdx) return false;
+  rMin.value = loIdx; rMax.value = hiIdx; syncSlider();
+  return true;
+}
+presets.addEventListener("click", e => {
+  const btn = e.target.closest(".preset");
+  if (!btn) return;
+  if (btn.classList.contains("active")) {          // click active preset → back to full range
+    clearActivePreset();
+    rMin.value = 0; rMax.value = lastIdx; syncSlider(); render();
+    return;
+  }
+  if (applyPresetRange(parseInt(btn.dataset.lo, 10), parseInt(btn.dataset.hi, 10))) {
+    clearActivePreset(); btn.classList.add("active"); render();
+  }
+});
+
 document.getElementById("resetBtn").addEventListener("click", () => {
   regionSelect.value = "";
   provSelect.value = "";
@@ -305,6 +343,7 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   refreshProvOptions();
   refreshDepOptions();
   document.querySelectorAll("input.ct").forEach(cb => cb.checked = true);
+  clearActivePreset();
   rMin.value = 0; rMax.value = lastIdx; syncSlider();
   render();
 });
